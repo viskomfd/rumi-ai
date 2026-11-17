@@ -1,50 +1,56 @@
-# Elderly Fall Detection System 
+# Rumi AI — Vision-Based Fall Detection Engine
 
-Backend service dan engine AI deteksi jatuh menggunakan **FastAPI**, **PostgreSQL**, dan **YOLO11-pose**.
+Repository khusus pengembangan **model AI** (`yolo11_rumi.pt`) dan **skrip inferensi/kinematika deteksi jatuh** (`python_script/realtime_fall_detection.py`) untuk ekosistem **Rumi**.
 
----
-
-## Tech Stack
-- **API Framework:** FastAPI & SQLAlchemy
-- **Database:** PostgreSQL
-- **AI Engine:** Ultralytics YOLO11 (`yolo11n-pose.pt` / `yolo11s-pose.pt`)
-- **Computer Vision:** OpenCV & PyTorch (Auto CPU / CUDA fallback)
+> **Catatan Arsitektur Organisasi (`viskomfd`):**
+> - `falldetection-fe` — Frontend Dashboard
+> - `Rumi-be` — Main Backend (FastAPI, Database, Multi-Camera Supervisor)
+> - **Repo ini (`model-only`)** — AI Model Weights & Fall Detection Vision Script
 
 ---
 
-## Quickstart & Local Setup
+## Fitur Utama Engine AI
+- **Fine-tuned Pose Model (`yolo11_rumi.pt`):** YOLO11-pose dengan kalibrasi kamera CCTV & IR (fallback otomatis ke `yolo11n-pose.pt`).
+- **4-Parameter Kinematic Calibration (4D Grid Search):**
+  - `ASPECT_RATIO_THRESHOLD = 0.80`
+  - `TORSO_ANGLE_THRESHOLD = 52.5°`
+  - `VERTICAL_VELOCITY_THRESHOLD = 14.0 px/step`
+  - `FLOOR_COLLAPSE_THRESHOLD = 0.40` *(Floor Collapse Ratio `y1 / frame_h` untuk mengatasi longitudinal fall & inverted skeleton)*
+- **4 Lapis Validasi Spatio-Temporal:**
+  1. *Anatomical Upright Filter* (`is_anatomically_upright`)
+  2. *Kinetic Transition Gate* (`has_fall_dynamics` — membedakan **peristiwa jatuh** dari **tidur/rebahan normal**)
+  3. *Sliding Window Voting* (`POSTURE_WINDOW = 5`, `POSTURE_VOTE_RATIO = 0.4`)
+  4. *Inactivity Confirmation & Latch* (`INACTIVITY_SECONDS = 1.2`, pergeseran `< 25 px`)
+- **Tracker Continuity:** ByteTrack + Spatial ID Re-linking (`160 px`, `3.0 s`) + Room-level Context Memory.
 
-### 1. Clone & Setup Virtual Environment
+---
+
+## Quickstart & Local Testing
+
+### 1. Setup Virtual Environment
 ```bash
-git clone https://github.com/ramafadhil/falldetection-be.git
-cd falldetection-be
-
-# Buat & aktifkan venv
 python -m venv venv
 .\venv\Scripts\activate
-```
-
-### 2. Install Dependencies
-```bash
 pip install -r requirements.txt
 ```
 
-### 3. Environment & Database Setup
-1. Buat file `.env` dengan menyalin file `.env.example`:
+### 2. Konfigurasi Environment (Opsional)
+Salin `.env.example` menjadi `.env` jika ingin menyesuaikan parameter:
+```bash
+copy .env.example .env
+```
+
+### 3. Jalankan Engine Secara Standalone
+Secara default skrip akan membaca `python_script/test_fall.mp4` dan menampilkan jendela HUD debug (`AR`, `FCR`, `Vel`):
+```bash
+python python_script/realtime_fall_detection.py
 ```
 
 ---
 
-## Cara Menjalankan
+## Integrasi ke Main Backend (`Rumi-be`)
+Tim backend di `Rumi-be` hanya perlu mengambil dua file utama dari repo ini:
+1. `yolo11_rumi.pt`
+2. `python_script/realtime_fall_detection.py`
 
-**1. Jalankan FastAPI Backend**
-```bash
-uvicorn main:app --reload
-```
-*API docs otomatis bisa diakses di `http://localhost:8000/docs`*
-
-**2. Jalankan Script Deteksi Kamera (AI)**
-Buka terminal baru (pastikan `venv` aktif), lalu jalankan:
-```bash
-python python_script/realtime_fall_detection.py
-```
+Detail perubahan model dan logika dapat dibaca di [`FALL_DETECTION_MODEL_AND_LOGIC_CHANGELOG.md`](FALL_DETECTION_MODEL_AND_LOGIC_CHANGELOG.md).
