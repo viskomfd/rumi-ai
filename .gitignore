@@ -4,13 +4,14 @@ venv/
 __pycache__/
 *.pyc
 
-
+# Ignore model checkpoints except the production fine-tuned weights
 *.pt
-
+!yolo11_rumi.pt
 
 storage/thumbnails/*
 !storage/thumbnails/.gitkeep
-
+storage/clips/*
+!storage/clips/.gitkeep
 
 .env
 .vscode/
