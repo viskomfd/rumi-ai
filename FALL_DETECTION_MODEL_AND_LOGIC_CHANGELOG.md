@@ -3,7 +3,7 @@
 **Project:** Rumi Vision-Based Fall Detection System  
 **File Target:** [`python_script/realtime_fall_detection.py`](file:///c:/Kuliah_Rama/Semester_5/Viskom/fall-detection-backend/python_script/realtime_fall_detection.py)  
 **Model Target:** `yolo11_rumi.pt` (Local fine-tuned YOLO11-pose weights)  
-**Document Version:** 2.0 (Post-Longitudinal & Sleep-Invariance Release)  
+**Document Version:** 2.1 (4-Parameter Calibration & Paired RGB+IR Retrain)  
 
 ---
 
@@ -84,16 +84,24 @@ Before our fix, the script evaluated this inverted skeleton purely through verti
 $$\text{shoulder}_y < \text{hip}_y < \text{ankle}_y \implies \text{is\_anatomically\_upright} = \text{True}$$
 This caused the detector to assume the recumbent individual was standing upright, instantly resetting the fall state to `Normal`.
 
+### 2.4 Retraining Strategy: Paired RGB + IR (50:50) & Video-Level Split (80:20)
+To ensure `yolo11_rumi.pt` generalizes across both **daytime RGB CCTV** and **nighttime IR/low-light CCTV** without forgetting color features or leaking validation frames:
+1. **Paired RGB + IR Dataset (`/content/cauca_mixed_dataset`):** Every selected frame (stride = 5, pseudo-labeled via `yolo11n-pose.pt` with confidence $> 0.5$) is saved in two paired versions (`_rgb.jpg` and `_ir.jpg` via `convert_to_simulated_ir`) sharing identical bounding box and 17-keypoint COCO labels. This enforces **domain-invariant** pose representation across lighting domains.
+2. **Video-Level Split (80:20):** Train/validation splitting is performed at the **video file level** before frame extraction rather than random frame-level shuffling, preventing temporal data leakage between train and validation sets.
+
 ---
 
 ## 3. Core Script Logic Modifications
 
-### 3.1 Kinematic Calibration (FPS-Compensated Velocity & Drop)
-The worker processes frames at an effective inference rate of $10\text{ FPS}$ (`inference_interval = 3` on a $30\text{ FPS}$ camera). The velocity and displacement parameters were calibrated to eliminate sitting/stooping false positives while maintaining acute drop sensitivity:
+### 3.1 Kinematic Calibration (4D Grid Search + FPS-Compensated Velocity & Drop)
+The worker processes frames at an effective inference rate of $10\text{ FPS}$ (`inference_interval = 3` on a $30\text{ FPS}$ camera). The 4 core parameters were calibrated via **4D Grid Search** (95.13% CAUCAFall accuracy, 94.05% URFD ADL specificity):
 
 | Parameter | Previous Value | New Value | Rationale |
 | :--- | :--- | :--- | :--- |
+| `ASPECT_RATIO_THRESHOLD` | `0.55` (and `0.75`) | **`0.80`** | Optimal lateral bounding box width/height threshold from 4D Grid Search. |
+| `TORSO_ANGLE_THRESHOLD` | `45.0°` | **`52.5°`** | Optimal torso tilt angle from 4D Grid Search. |
 | `VERTICAL_VELOCITY_THRESHOLD` | `8.0` px/frame | **`14.0` px/frame** | Adjusted for larger 3-frame displacement delta; filters out normal seating. |
+| `FLOOR_COLLAPSE_THRESHOLD` | *Hardcoded* `0.38` | **`0.40`** | **4th Parameter (`FCR`):** `y1 / frame_h` ratio for longitudinal fall detection. |
 | `SLOW_FALL_DROP_THRESHOLD` | `28.0` px | **`45.0` px** | Distinguishes accidental collapsing/slumping from intentional bending over. |
 | `INACTIVITY_SECONDS` | `0.8` s | **`1.2` s** | Configurable via `.env`; avoids premature triggers during brief pauses. |
 | Movement Threshold (`is_inactive`) | `65.0` px | **`25.0` px** | Prevents subtle floor breathing or keypoint jitter from resetting inactivity. |

@@ -10,7 +10,7 @@ Repository khusus pengembangan **model AI** (`yolo11_rumi.pt`) dan **skrip infer
 ---
 
 ## Fitur Utama Engine AI
-- **Fine-tuned Pose Model (`yolo11_rumi.pt`):** YOLO11-pose dengan kalibrasi kamera CCTV & IR (fallback otomatis ke `yolo11n-pose.pt`).
+- **Fine-tuned Pose Model (`yolo11_rumi.pt`):** YOLO11-pose dilatih ulang (*retrained*) menggunakan dataset **Paired RGB + Simulated IR (50:50)** dan **Video-Level Split (80:20)** agar *domain-invariant* di CCTV siang (RGB) maupun malam/IR (fallback otomatis ke `yolo11n-pose.pt`).
 - **4-Parameter Kinematic Calibration (4D Grid Search):**
   - `ASPECT_RATIO_THRESHOLD = 0.80`
   - `TORSO_ANGLE_THRESHOLD = 52.5°`
